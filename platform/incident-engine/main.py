@@ -31,8 +31,8 @@ async def manage_incident(event_type: str, payload: dict, message_id: str):
     if event_type == "BLAST_RADIUS_MAPPED":
         root_cause = payload.get("root_cause_candidate")
 
-        # Suppress duplicates if service already has active incident
-        if any(inc.get("root_cause") == root_cause for inc in active_incidents.values()):
+        # Suppress duplicates if service already has an active investigating incident
+        if any(inc.get("root_cause") == root_cause and inc.get("status") == "investigating" for inc in active_incidents.values()):
             logger.debug("duplicate_incident_suppressed", root=root_cause)
             return
 
@@ -72,7 +72,7 @@ async def manage_incident(event_type: str, payload: dict, message_id: str):
         incident_id = payload.get("incident_id")
         if incident_id in active_incidents:
             logger.info("incident_resolved", incident_id=incident_id)
-            del active_incidents[incident_id]
+            active_incidents[incident_id]["status"] = "resolved"
 
 async def run_consumer():
     await event_bus.connect()

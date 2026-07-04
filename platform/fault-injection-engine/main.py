@@ -61,6 +61,10 @@ async def inject_fault_and_trigger_pipeline(scenario: str, target: str):
         else:
             logger.warning(f"Fault type {fault_type} is mocked for this phase. Simulating generic disruption.")
             
+    except Exception as e:
+        logger.error(f"Failed to inject actual k8s fault (continuing pipeline simulation): {e}")
+
+    try:
         # GUARANTEED PIPELINE TRIGGER: Bypass monitoring-engine/OTel and directly emit anomaly
         logger.info(f"Triggering direct anomaly for {target} to guarantee auto-healing pipeline.")
         await event_bus.publish(
@@ -75,7 +79,7 @@ async def inject_fault_and_trigger_pipeline(scenario: str, target: str):
         )
             
     except Exception as e:
-        logger.error(f"Failed to inject fault: {e}")
+        logger.error(f"Failed to publish pipeline trigger: {e}")
 
 async def handle_chaos_event(event_type: str, event: dict, message_id: str):
     if event_type == "ChaosStarted":

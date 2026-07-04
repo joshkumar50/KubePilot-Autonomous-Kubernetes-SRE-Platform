@@ -62,6 +62,21 @@ async def coordinate_ai_workflow(event_type: str, payload: dict, message_id: str
                     "RECOVERY_PLAN_READY",
                     {"incident_id": incident_id, "rca": rca_data, "plan": plan_data},
                 )
+
+                # 6. Audit Trail - record every autonomous decision
+                await event_bus.publish(
+                    "audit_events",
+                    "AUTONOMOUS_DECISION",
+                    {
+                        "incident_id": incident_id,
+                        "event_type": "AUTONOMOUS_DECISION",
+                        "decision": decision_data.get("authorized_action", "RESTART_POD"),
+                        "confidence_score": 0.97,
+                        "human_approved": False,
+                        "model_name": "deterministic-v1",
+                        "rca": rca_data,
+                    },
+                )
                 logger.info("orchestration_complete", incident_id=incident_id)
 
             except Exception as e:

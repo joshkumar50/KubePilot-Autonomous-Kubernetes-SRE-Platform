@@ -25,6 +25,10 @@ async def execute_recovery(event_type: str, payload: dict, message_id: str):
         target = payload.get("rca", {}).get("root_cause")
 
         logger.info("received_recovery_plan", incident_id=incident_id, target=target)
+        
+        # ARTIFICIAL DELAY: Pause for 5 seconds to allow UI polling to show the active incident
+        # before it is instantly resolved.
+        await asyncio.sleep(5)
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:

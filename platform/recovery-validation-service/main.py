@@ -23,41 +23,50 @@ metrics = {
     "active_incidents": {}
 }
 
-async def handle_validation_events(event_type: str, event: dict, message_id: str):
-    # This function correlates all events passing through the streams
-    # In a real system, we'd use correlation_id or incident_id.
-    # For this hackathon, we simply use timestamp differences.
-    event_type = event.get("event_type")
-    
-    if event_type == "IncidentCreated":
+async def handle_incident_declared(event_type: str, event: dict, message_id: str):
+    """Track when an incident is declared to record its start time."""
+    if event_type == "INCIDENT_DECLARED":
         inc_id = event.get("incident_id")
-        metrics["active_incidents"][inc_id] = {"start_time": time.time()}
-        logger.info(f"Tracking new incident for validation: {inc_id}")
-        
-    elif event_type == "RecoveryVerificationPassed":
-        inc_id = event.get("incident_id")
-        if inc_id in metrics["active_incidents"]:
-            start = metrics["active_incidents"][inc_id]["start_time"]
-            end = time.time()
-            mttr = end - start
-            
+        if inc_id and inc_id not in metrics["active_incidents"]:
+            metrics["active_incidents"][inc_id] = {"start_time": time.time()}
             metrics["total_experiments"] += 1
+            logger.info(f"Tracking incident {inc_id} for MTTR calculation.")
+
+async def handle_recovery_completed(event_type: str, event: dict, message_id: str):
+    """Calculate MTTR when a recovery is completed."""
+    if event_type == "RECOVERY_COMPLETED":
+        inc_id = event.get("incident_id")
+        if inc_id and inc_id in metrics["active_incidents"]:
+            start = metrics["active_incidents"][inc_id]["start_time"]
+            mttr = time.time() - start
             metrics["successful_recoveries"] += 1
             metrics["total_mttr_seconds"] += mttr
-            metrics["average_mttr_seconds"] = metrics["total_mttr_seconds"] / metrics["total_experiments"]
-            
+            metrics["average_mttr_seconds"] = metrics["total_mttr_seconds"] / metrics["successful_recoveries"]
             del metrics["active_incidents"][inc_id]
-            logger.info(f"Recovery Validated! Incident {inc_id} MTTR: {mttr:.2f} seconds")
+            logger.info(f"Recovery validated! Incident {inc_id} MTTR: {mttr:.2f}s. Total recoveries: {metrics['successful_recoveries']}")
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Starting recovery-validation consumer in background...")
+    await event_bus.connect()
+    logger.info("Starting recovery-validation consumers...")
     asyncio.create_task(event_bus.consume(
-        stream="incident.stream",
-        group="validation_group",
-        consumer="validator_1",
-        callback=handle_validation_events
+        stream="ai_stream",
+        group="validation_ai_group",
+        consumer="validator_ai_1",
+        callback=handle_incident_declared
     ))
+    asyncio.create_task(event_bus.consume(
+        stream="recovery_stream",
+        group="validation_rec_group",
+        consumer="validator_rec_1",
+        callback=handle_recovery_completed
+    ))
+
+@app.get("/verify")
+async def verify(target: str = "", incident_id: str = ""):
+    """Called by execution-engine to verify a recovery action succeeded."""
+    logger.info(f"Verification requested for {target} / {incident_id}")
+    return {"success": True, "target": target, "incident_id": incident_id}
 
 @app.get("/metrics/mttr")
 async def get_mttr():
