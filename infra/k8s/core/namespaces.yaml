@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubepilot-system
+  labels:
+    name: kubepilot-system
+    env: production
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubepilot-apps
+  labels:
+    name: kubepilot-apps
+    env: production
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubepilot-observability
+  labels:
+    name: kubepilot-observability
+    env: production

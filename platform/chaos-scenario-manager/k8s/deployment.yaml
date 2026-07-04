@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chaos-scenario-manager
+  namespace: kubepilot-system
+  labels:
+    app: chaos-scenario-manager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chaos-scenario-manager
+  template:
+    metadata:
+      labels:
+        app: chaos-scenario-manager
+    spec:
+      containers:
+      - name: chaos-scenario-manager
+        image: kubepilot-chaos-scenario-manager:latest
+        imagePullPolicy: Never
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: kubepilot-global-config
+        - secretRef:
+            name: kubepilot-secrets
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chaos-scenario-manager
+  namespace: kubepilot-system
+spec:
+  selector:
+    app: chaos-scenario-manager
+  ports:
+  - port: 80
+    targetPort: 8000
