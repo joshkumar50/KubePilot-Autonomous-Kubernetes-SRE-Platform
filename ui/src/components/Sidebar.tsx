@@ -4,17 +4,37 @@ import {
   RefreshCw, Zap, Activity, ClipboardList, Settings, Cpu
 } from 'lucide-react';
 
-const navItems = [
-  { name: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { name: 'Cluster View', path: '/cluster', icon: Server },
-  { name: 'Live Topology', path: '/topology', icon: Share2 },
-  { name: 'Incident Center', path: '/incidents', icon: AlertTriangle },
-  { name: 'AI Analysis', path: '/ai', icon: Brain },
-  { name: 'Recovery Center', path: '/recovery', icon: RefreshCw },
-  { name: 'Chaos Engineering', path: '/chaos', icon: Zap },
-  { name: 'Observability', path: '/observability', icon: Activity },
-  { name: 'Audit Center', path: '/audit', icon: ClipboardList },
-  { name: 'Settings', path: '/settings', icon: Settings },
+const navGroups = [
+  {
+    title: 'Overview',
+    items: [
+      { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+      { name: 'Cluster View', path: '/cluster', icon: Server },
+      { name: 'Live Topology', path: '/topology', icon: Share2 },
+    ]
+  },
+  {
+    title: 'Operations',
+    items: [
+      { name: 'Incident Center', path: '/incidents', icon: AlertTriangle },
+      { name: 'AI Analysis', path: '/ai', icon: Brain },
+      { name: 'Recovery Center', path: '/recovery', icon: RefreshCw },
+    ]
+  },
+  {
+    title: 'Reliability',
+    items: [
+      { name: 'Observability', path: '/observability', icon: Activity },
+      { name: 'Chaos Engineering', path: '/chaos', icon: Zap },
+    ]
+  },
+  {
+    title: 'System',
+    items: [
+      { name: 'Audit Center', path: '/audit', icon: ClipboardList },
+      { name: 'Settings', path: '/settings', icon: Settings },
+    ]
+  }
 ];
 
 export const Sidebar = () => {
@@ -33,25 +53,34 @@ export const Sidebar = () => {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = location.pathname === item.path;
-          return (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                active
-                  ? 'bg-indigo-50 text-indigo-700'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-            >
-              <Icon size={16} className={active ? 'text-indigo-600' : 'text-slate-400'} />
-              {item.name}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 overflow-y-auto p-4 space-y-6">
+        {navGroups.map((group) => (
+          <div key={group.title}>
+            <h3 className="px-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+              {group.title}
+            </h3>
+            <div className="space-y-0.5">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const active = location.pathname === item.path;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`flex items-center gap-3 px-2 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      active
+                        ? 'bg-indigo-50 text-indigo-700'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <Icon size={15} className={active ? 'text-indigo-600' : 'text-slate-400'} />
+                    {item.name}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* Footer */}

@@ -77,29 +77,99 @@ async def get_incidents():
 async def get_topology():
     return {
         "nodes": [
-            {"id": "api-gateway", "type": "service", "label": "API Gateway"},
-            {"id": "auth-service", "type": "service", "label": "Auth Service"},
-            {"id": "payment-service", "type": "service", "label": "Payment Service"},
-            {"id": "order-service", "type": "service", "label": "Order Service"},
-            {"id": "inventory-service", "type": "service", "label": "Inventory Service"},
-            {"id": "notification-service", "type": "service", "label": "Notification Service"},
-            {"id": "dashboard-bff", "type": "platform", "label": "Dashboard BFF"},
-            {"id": "ai-copilot", "type": "platform", "label": "AI Copilot"},
-            {"id": "chaos-controller", "type": "platform", "label": "Chaos Controller"},
-            {"id": "redis", "type": "datastore", "label": "Redis EventBus"},
-            {"id": "postgres", "type": "datastore", "label": "PostgreSQL"},
+            # Layer 0 – UI
+            {"id": "ui", "type": "ui", "label": "React UI", "layer": 0},
+            # Layer 1 – Entry
+            {"id": "dashboard-bff", "type": "platform", "label": "Dashboard BFF", "layer": 1},
+            {"id": "api-gateway", "type": "service", "label": "API Gateway", "layer": 1},
+            # Layer 2 – Business services
+            {"id": "auth-service", "type": "service", "label": "Auth", "layer": 2},
+            {"id": "payment-service", "type": "service", "label": "Payment", "layer": 2},
+            {"id": "order-service", "type": "service", "label": "Order", "layer": 2},
+            {"id": "inventory-service", "type": "service", "label": "Inventory", "layer": 2},
+            {"id": "notification-service", "type": "service", "label": "Notification", "layer": 2},
+            # Layer 3 – SRE Intelligence
+            {"id": "anomaly-engine", "type": "sre", "label": "Anomaly Engine", "layer": 3},
+            {"id": "dependency-engine", "type": "sre", "label": "Dependency Engine", "layer": 3},
+            {"id": "incident-engine", "type": "sre", "label": "Incident Engine", "layer": 3},
+            {"id": "monitoring-engine", "type": "sre", "label": "Monitoring Engine", "layer": 3},
+            {"id": "telemetry-collector", "type": "sre", "label": "Telemetry Collector", "layer": 3},
+            # Layer 4 – AI & Decision
+            {"id": "ai-orchestrator", "type": "ai", "label": "AI Orchestrator", "layer": 4},
+            {"id": "ai-copilot", "type": "ai", "label": "AI Copilot", "layer": 4},
+            {"id": "root-cause-analysis-engine", "type": "ai", "label": "RCA Engine", "layer": 4},
+            {"id": "knowledge-engine", "type": "ai", "label": "Knowledge Engine", "layer": 4},
+            {"id": "decision-engine", "type": "ai", "label": "Decision Engine", "layer": 4},
+            {"id": "policy-engine", "type": "ai", "label": "Policy Engine", "layer": 4},
+            # Layer 5 – Execution & Recovery
+            {"id": "execution-engine", "type": "execution", "label": "Execution Engine", "layer": 5},
+            {"id": "kubernetes-controller", "type": "execution", "label": "K8s Controller", "layer": 5},
+            {"id": "recovery-engine", "type": "execution", "label": "Recovery Engine", "layer": 5},
+            {"id": "recovery-planning-engine", "type": "execution", "label": "Recovery Planner", "layer": 5},
+            {"id": "recovery-validation-service", "type": "execution", "label": "Recovery Validator", "layer": 5},
+            {"id": "rollback-engine", "type": "execution", "label": "Rollback Engine", "layer": 5},
+            # Layer 6 – Chaos
+            {"id": "chaos-controller", "type": "chaos", "label": "Chaos Controller", "layer": 6},
+            {"id": "chaos-engine", "type": "chaos", "label": "Chaos Engine", "layer": 6},
+            {"id": "chaos-scenario-manager", "type": "chaos", "label": "Scenario Manager", "layer": 6},
+            {"id": "fault-injection-engine", "type": "chaos", "label": "Fault Injector", "layer": 6},
+            # Layer 7 – Datastores
+            {"id": "redis", "type": "datastore", "label": "Redis EventBus", "layer": 7},
+            {"id": "postgres", "type": "datastore", "label": "PostgreSQL", "layer": 7},
+            # Audit
+            {"id": "audit-engine", "type": "platform", "label": "Audit Engine", "layer": 4},
         ],
         "edges": [
+            # UI → Entry
+            {"source": "ui", "target": "dashboard-bff"},
+            {"source": "ui", "target": "api-gateway"},
+            # Entry → Business
+            {"source": "dashboard-bff", "target": "api-gateway"},
             {"source": "api-gateway", "target": "auth-service"},
             {"source": "api-gateway", "target": "payment-service"},
             {"source": "api-gateway", "target": "order-service"},
             {"source": "api-gateway", "target": "inventory-service"},
             {"source": "order-service", "target": "notification-service"},
-            {"source": "dashboard-bff", "target": "api-gateway"},
-            {"source": "ai-copilot", "target": "redis"},
-            {"source": "chaos-controller", "target": "redis"},
+            # Business → Datastores
             {"source": "auth-service", "target": "postgres"},
             {"source": "payment-service", "target": "postgres"},
+            {"source": "order-service", "target": "postgres"},
+            # Telemetry collection
+            {"source": "telemetry-collector", "target": "api-gateway"},
+            {"source": "telemetry-collector", "target": "auth-service"},
+            {"source": "telemetry-collector", "target": "payment-service"},
+            {"source": "monitoring-engine", "target": "telemetry-collector"},
+            # SRE pipeline
+            {"source": "monitoring-engine", "target": "anomaly-engine"},
+            {"source": "anomaly-engine", "target": "dependency-engine"},
+            {"source": "dependency-engine", "target": "incident-engine"},
+            {"source": "incident-engine", "target": "ai-orchestrator"},
+            # AI pipeline
+            {"source": "ai-orchestrator", "target": "root-cause-analysis-engine"},
+            {"source": "ai-orchestrator", "target": "knowledge-engine"},
+            {"source": "ai-orchestrator", "target": "decision-engine"},
+            {"source": "ai-orchestrator", "target": "ai-copilot"},
+            {"source": "decision-engine", "target": "policy-engine"},
+            {"source": "policy-engine", "target": "execution-engine"},
+            {"source": "decision-engine", "target": "audit-engine"},
+            # Execution
+            {"source": "execution-engine", "target": "kubernetes-controller"},
+            {"source": "execution-engine", "target": "recovery-engine"},
+            {"source": "recovery-engine", "target": "recovery-planning-engine"},
+            {"source": "recovery-planning-engine", "target": "recovery-validation-service"},
+            {"source": "recovery-engine", "target": "rollback-engine"},
+            # Chaos
+            {"source": "chaos-controller", "target": "chaos-engine"},
+            {"source": "chaos-controller", "target": "chaos-scenario-manager"},
+            {"source": "chaos-engine", "target": "fault-injection-engine"},
+            {"source": "fault-injection-engine", "target": "api-gateway"},
+            # EventBus
+            {"source": "anomaly-engine", "target": "redis"},
+            {"source": "incident-engine", "target": "redis"},
+            {"source": "decision-engine", "target": "redis"},
+            {"source": "execution-engine", "target": "redis"},
+            {"source": "chaos-controller", "target": "redis"},
+            {"source": "audit-engine", "target": "postgres"},
         ]
     }
 
