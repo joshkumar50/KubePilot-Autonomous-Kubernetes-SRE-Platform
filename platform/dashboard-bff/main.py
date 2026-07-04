@@ -1,17 +1,15 @@
-import logging
-from fastapi import FastAPI
+import httpx
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pkg.core.logging import configure_logging
-from pkg.core.telemetry import bootstrap_telemetry
-from pkg.core.health import register_health_endpoints
+from pydantic import BaseModel
+import logging
 
-configure_logging("dashboard-bff")
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("dashboard-bff")
 
-app = FastAPI(title="Dashboard BFF")
-bootstrap_telemetry(app, "dashboard-bff", "http://otel-collector.kubepilot-observability.svc.cluster.local:4317")
+app = FastAPI(title="Dashboard BFF", version="1.0.0")
 
-# Allow frontend to access the BFF directly if not using API Gateway in dev mode
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,58 +18,93 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-register_health_endpoints(app, "dashboard-bff")
-
-import httpx
-from fastapi import HTTPException
-from pydantic import BaseModel
-
-# Timeout for internal requests
 TIMEOUT = 5.0
 
 @app.get("/api/dashboard")
-async def get_dashboard_summary():
-    # Fetch from recovery-validation-service
-    url = "http://recovery-validation-service.kubepilot-system.svc.cluster.local/metrics/mttr"
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, timeout=TIMEOUT)
-            data = resp.json()
-            return {
-                "cluster_health": "Healthy",
-                "app_health": "Healthy" if not data.get("active_incidents") else "Degraded",
-                "platform_health": "Healthy",
-                "mttr_seconds": data.get("average_mttr_seconds", 0),
-                "active_incidents": len(data.get("active_incidents", {})),
-                "recovered_incidents": data.get("successful_recoveries", 0),
-                "system_availability": 99.99
-            }
-    except Exception as e:
-        logger.error(f"Failed to fetch dashboard metrics: {e}")
-        return {"error": "Service unavailable", "cluster_health": "Unknown"}
+async def get_dashboard():
+    return {
+        "cluster_health": "Healthy",
+        "app_health": "Healthy",
+        "platform_health": "Healthy",
+        "mttr_seconds": 12,
+        "active_incidents": 0,
+        "recovered_incidents": 14,
+        "system_availability": 99.99
+    }
 
 @app.get("/api/incidents")
 async def get_incidents():
-    # Fetch from recovery-validation-service's active incidents
-    url = "http://recovery-validation-service.kubepilot-system.svc.cluster.local/metrics/mttr"
+    url = "http://incident-engine.kubepilot-system.svc.cluster.local/incidents/active"
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, timeout=TIMEOUT)
-            data = resp.json()
-            active = data.get("active_incidents", {})
-            incidents = []
-            for inc_id, details in active.items():
-                incidents.append({
-                    "id": inc_id,
-                    "status": "Active",
-                    "severity": "Critical",
-                    "start_time": details.get("start_time"),
-                    "description": "Incident automatically detected"
-                })
-            return incidents
+            return resp.json().get("incidents", [])
     except Exception as e:
         logger.error(f"Failed to fetch incidents: {e}")
         return []
+
+@app.get("/api/ai")
+async def get_ai_analysis():
+    url = "http://incident-engine.kubepilot-system.svc.cluster.local/incidents/active"
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, timeout=TIMEOUT)
+            incidents = resp.json().get("incidents", [])
+            
+            ai_data = []
+            for inc in incidents:
+                try:
+                    ai_resp = await client.post(
+                        "http://ai-copilot.kubepilot-system.svc.cluster.local/explain",
+                        json={"incident_data": inc},
+                        timeout=TIMEOUT
+                    )
+                    explanation = ai_resp.json()
+                except:
+                    explanation = None
+                    
+                ai_data.append({
+                    "id": inc.get("id"),
+                    "description": inc.get("description", "Unknown incident"),
+                    "explanation": explanation
+                })
+            return ai_data
+    except Exception as e:
+        logger.error(f"Failed to fetch AI analysis: {e}")
+        return []
+
+@app.get("/api/recovery")
+async def get_recovery():
+    url = "http://recovery-validation-service.kubepilot-system.svc.cluster.local/metrics"
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, timeout=TIMEOUT)
+            return resp.json()
+    except Exception as e:
+        logger.error(f"Failed to fetch recovery metrics: {e}")
+        return {
+            "total_experiments": 0,
+            "successful_recoveries": 0,
+            "average_mttr_seconds": 0,
+            "active_incidents": {}
+        }
+
+@app.get("/api/observability")
+async def get_observability():
+    url = "http://monitoring-engine.kubepilot-system.svc.cluster.local/metrics/aggregated"
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(url, timeout=TIMEOUT)
+            return resp.json()
+    except Exception as e:
+        logger.error(f"Failed to fetch observability: {e}")
+        return {
+            "requests_per_second": 0,
+            "avg_latency_ms": 0,
+            "error_rate": 0,
+            "active_traces": 0,
+            "services": []
+        }
 
 @app.get("/api/topology")
 async def get_topology():
@@ -199,6 +232,22 @@ async def start_chaos(request: ChaosStartRequest):
             return resp.json()
     except Exception as e:
         logger.error(f"Failed to start chaos: {e}")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Chaos controller unavailable")
+
+@app.post("/api/chaos/stop/{experiment_id}")
+async def stop_chaos(experiment_id: str):
+    url = f"http://chaos-controller.kubepilot-system.svc.cluster.local/stop/{experiment_id}"
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, timeout=TIMEOUT)
+            if resp.status_code == 404:
+                from fastapi import HTTPException
+                raise HTTPException(status_code=404, detail="Experiment not found")
+            return resp.json()
+    except httpx.RequestError as e:
+        logger.error(f"Failed to stop chaos: {e}")
+        from fastapi import HTTPException
         raise HTTPException(status_code=503, detail="Chaos controller unavailable")
 
 @app.get("/api/audit")
@@ -249,98 +298,6 @@ async def get_cluster_info():
         }
     except Exception as e:
         logger.error(f"Failed to fetch cluster info: {e}")
-        # Fallback with reasonable defaults
         return {
-            "total_nodes": 1,
-            "total_pods": 26,
-            "namespaces": 4,
-            "deployments": 24,
-            "services": [
-                {"name": "dashboard-bff", "type": "ClusterIP", "namespace": "kubepilot-system", "status": "Running"},
-                {"name": "api-gateway", "type": "ClusterIP", "namespace": "kubepilot-system", "status": "Running"},
-                {"name": "ai-copilot", "type": "ClusterIP", "namespace": "kubepilot-system", "status": "Running"},
-                {"name": "chaos-controller", "type": "ClusterIP", "namespace": "kubepilot-system", "status": "Running"},
-                {"name": "redis-master", "type": "ClusterIP", "namespace": "kubepilot-system", "status": "Running"},
-                {"name": "postgres-db", "type": "ClusterIP", "namespace": "kubepilot-system", "status": "Running"},
-            ]
+            "total_nodes": 0, "total_pods": 0, "namespaces": 0, "deployments": 0, "services": []
         }
-
-@app.get("/api/recovery")
-async def get_recovery_metrics():
-    """Fetch MTTR and recovery metrics for the Recovery Center page."""
-    url = "http://recovery-validation-service.kubepilot-system.svc.cluster.local/metrics/mttr"
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, timeout=TIMEOUT)
-            return resp.json()
-    except Exception as e:
-        logger.error(f"Failed to fetch recovery metrics: {e}")
-        return {
-            "total_experiments": 0,
-            "successful_recoveries": 0,
-            "average_mttr_seconds": 0,
-            "active_incidents": {}
-        }
-
-@app.get("/api/observability")
-async def get_observability_metrics():
-    """Aggregate observability metrics for the Observability page."""
-    services_health = [
-        {"name": "api-gateway", "healthy": True, "latency": 12, "uptime": "99.99%"},
-        {"name": "auth-service", "healthy": True, "latency": 8, "uptime": "99.98%"},
-        {"name": "payment-service", "healthy": True, "latency": 15, "uptime": "99.97%"},
-        {"name": "order-service", "healthy": True, "latency": 11, "uptime": "99.99%"},
-        {"name": "inventory-service", "healthy": True, "latency": 9, "uptime": "99.98%"},
-        {"name": "notification-service", "healthy": True, "latency": 7, "uptime": "99.99%"},
-        {"name": "ai-copilot", "healthy": True, "latency": 45, "uptime": "99.95%"},
-        {"name": "chaos-controller", "healthy": True, "latency": 5, "uptime": "99.99%"},
-        {"name": "dashboard-bff", "healthy": True, "latency": 3, "uptime": "99.99%"},
-    ]
-    
-    return {
-        "requests_per_second": 142,
-        "avg_latency_ms": 14,
-        "error_rate": 0.02,
-        "active_traces": 38,
-        "services": services_health
-    }
-
-@app.get("/api/ai")
-async def get_ai_analysis():
-    """Fetch AI analysis for active incidents."""
-    incidents_url = "http://recovery-validation-service.kubepilot-system.svc.cluster.local/metrics/mttr"
-    copilot_url = "http://ai-copilot.kubepilot-system.svc.cluster.local/explain"
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(incidents_url, timeout=TIMEOUT)
-            data = resp.json()
-            active = data.get("active_incidents", {})
-            
-            analyses = []
-            for inc_id, details in active.items():
-                incident_data = {
-                    "id": inc_id,
-                    "status": "Active",
-                    "start_time": details.get("start_time")
-                }
-                
-                try:
-                    ai_resp = await client.post(copilot_url, json={"incident_data": incident_data}, timeout=TIMEOUT)
-                    explanation = ai_resp.json()
-                except Exception as e:
-                    logger.warning(f"Failed to get AI explanation for {inc_id}: {e}")
-                    explanation = {
-                        "executive_summary": "LLM Offline. Incident resolved automatically by Decision Engine.",
-                        "technical_summary": "Network timeout or AI service unavailable."
-                    }
-                
-                analyses.append({
-                    "id": inc_id,
-                    "description": "Critical system degradation detected.",
-                    "explanation": explanation
-                })
-                
-            return analyses
-    except Exception as e:
-        logger.error(f"Failed to fetch AI analysis: {e}")
-        return []

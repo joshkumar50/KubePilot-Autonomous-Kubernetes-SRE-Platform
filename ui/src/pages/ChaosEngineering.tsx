@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
-import { Zap, CheckCircle, AlertTriangle, Play } from 'lucide-react';
+import { Zap, CheckCircle, AlertTriangle, Play, Square } from 'lucide-react';
 
 interface Experiment { scenario_id: string; target_service: string; }
 interface ChaosData { active_experiments: Record<string, Experiment>; error?: string; }
@@ -54,6 +54,14 @@ export const ChaosEngineering = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['chaos'] })
   });
 
+  const stopMutation = useMutation({
+    mutationFn: async (experimentId: string) => {
+      const res = await apiClient.post(`/chaos/stop/${experimentId}`);
+      return res.data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['chaos'] })
+  });
+
   const selectedScenarioInfo = scenarios.find(s => s.id === selectedScenario);
   const activeCount = data ? Object.keys(data.active_experiments || {}).length : 0;
 
@@ -98,7 +106,7 @@ export const ChaosEngineering = () => {
         </div>
         <button
           onClick={() => startMutation.mutate()}
-          disabled={startMutation.isPending}
+          disabled={startMutation.isPending || activeCount > 0}
           className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Play size={14} />
@@ -144,10 +152,19 @@ export const ChaosEngineering = () => {
                       Scenario: {exp.scenario_id} · Target: <span className="font-medium">{exp.target_service}</span>
                     </p>
                   </div>
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                    Active
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                      Active
+                    </span>
+                    <button
+                      onClick={() => stopMutation.mutate(id)}
+                      disabled={stopMutation.isPending}
+                      className="flex items-center gap-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 px-3 py-1.5 rounded-lg transition disabled:opacity-50"
+                    >
+                      <Square size={12} fill="currentColor" /> Stop
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
