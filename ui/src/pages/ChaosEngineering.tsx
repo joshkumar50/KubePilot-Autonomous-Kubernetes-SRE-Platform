@@ -1,18 +1,45 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { Zap, CheckCircle, AlertTriangle, Play } from 'lucide-react';
+
+interface Experiment { scenario_id: string; target_service: string; }
+interface ChaosData { active_experiments: Record<string, Experiment>; error?: string; }
+
+const scenarios = [
+  { id: '1', name: 'Database Lock', risk: 'medium' },
+  { id: '2', name: 'CPU Spike', risk: 'low' },
+  { id: '3', name: 'Memory Leak', risk: 'medium' },
+  { id: '4', name: 'Network Latency', risk: 'low' },
+  { id: '5', name: 'Packet Loss', risk: 'medium' },
+  { id: '6', name: 'CrashLoopBackOff', risk: 'high' },
+  { id: '7', name: 'Pod Crash', risk: 'high' },
+  { id: '8', name: 'Deployment Failure', risk: 'high' },
+  { id: '9', name: 'Replica Failure', risk: 'medium' },
+  { id: '10', name: 'Node Drain Simulation', risk: 'high' },
+  { id: '11', name: 'Redis Failure', risk: 'medium' },
+  { id: '12', name: 'API Gateway Failure', risk: 'high' },
+  { id: '13', name: 'High Error Rate', risk: 'medium' },
+  { id: '14', name: 'Slow Database Queries', risk: 'low' },
+  { id: '15', name: 'Cascading Failure', risk: 'high' },
+];
+
+const services = ['auth-service', 'payment-service', 'order-service', 'inventory-service', 'notification-service', 'all'];
+
+const riskColor = (r: string) => {
+  if (r === 'high') return 'text-red-600 bg-red-50';
+  if (r === 'medium') return 'text-amber-600 bg-amber-50';
+  return 'text-emerald-600 bg-emerald-50';
+};
 
 export const ChaosEngineering = () => {
   const queryClient = useQueryClient();
   const [selectedScenario, setSelectedScenario] = useState('1');
   const [targetService, setTargetService] = useState('auth-service');
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery<ChaosData>({
     queryKey: ['chaos'],
-    queryFn: async () => {
-      const res = await apiClient.get('/chaos');
-      return res.data;
-    }
+    queryFn: async () => { const res = await apiClient.get('/chaos'); return res.data; }
   });
 
   const startMutation = useMutation({
@@ -27,38 +54,29 @@ export const ChaosEngineering = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['chaos'] })
   });
 
-  const scenarios = [
-    { id: '1', name: 'Database Lock' },
-    { id: '2', name: 'CPU Spike' },
-    { id: '3', name: 'Memory Leak' },
-    { id: '4', name: 'Network Latency' },
-    { id: '5', name: 'Packet Loss' },
-    { id: '6', name: 'CrashLoopBackOff' },
-    { id: '7', name: 'Pod Crash' },
-    { id: '8', name: 'Deployment Failure' },
-    { id: '9', name: 'Replica Failure' },
-    { id: '10', name: 'Node Drain Simulation' },
-    { id: '11', name: 'Redis Failure' },
-    { id: '12', name: 'API Gateway Failure' },
-    { id: '13', name: 'High Error Rate' },
-    { id: '14', name: 'Slow Database Queries' },
-    { id: '15', name: 'Cascading Failure' },
-  ];
+  const selectedScenarioInfo = scenarios.find(s => s.id === selectedScenario);
+  const activeCount = data ? Object.keys(data.active_experiments || {}).length : 0;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-white">Chaos Engineering</h1>
-
-      {/* Experiment Launcher */}
-      <div className="p-6 bg-enterprise-card rounded-lg border border-slate-700 shadow-xl">
-        <h2 className="text-xl font-semibold text-white mb-4">Launch Experiment</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="space-y-6 max-w-4xl mx-auto">
+      {/* Launch panel */}
+      <div className="bg-white border border-slate-200 rounded-xl p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <Zap size={16} className="text-indigo-600" />
+          <h2 className="text-sm font-semibold text-slate-900">Launch Experiment</h2>
+          {selectedScenarioInfo && (
+            <span className={`ml-auto text-xs font-medium px-2 py-0.5 rounded-full ${riskColor(selectedScenarioInfo.risk)}`}>
+              {selectedScenarioInfo.risk.toUpperCase()} RISK
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-sm text-slate-400 mb-1">Scenario</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Failure Scenario</label>
             <select
               value={selectedScenario}
               onChange={(e) => setSelectedScenario(e.target.value)}
-              className="w-full p-2 bg-slate-800 border border-slate-600 rounded text-white"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             >
               {scenarios.map(s => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -66,68 +84,76 @@ export const ChaosEngineering = () => {
             </select>
           </div>
           <div>
-            <label className="block text-sm text-slate-400 mb-1">Target Service</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Target Service</label>
             <select
               value={targetService}
               onChange={(e) => setTargetService(e.target.value)}
-              className="w-full p-2 bg-slate-800 border border-slate-600 rounded text-white"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             >
-              <option value="auth-service">Auth Service</option>
-              <option value="payment-service">Payment Service</option>
-              <option value="order-service">Order Service</option>
-              <option value="inventory-service">Inventory Service</option>
-              <option value="notification-service">Notification Service</option>
-              <option value="all">All Services</option>
+              {services.map(svc => (
+                <option key={svc} value={svc}>{svc}</option>
+              ))}
             </select>
           </div>
-          <div className="flex items-end">
-            <button
-              onClick={() => startMutation.mutate()}
-              disabled={startMutation.isPending}
-              className="w-full p-2 bg-enterprise-danger hover:bg-red-600 text-white rounded font-semibold transition disabled:opacity-50"
-            >
-              {startMutation.isPending ? 'Starting...' : '⚡ Launch Chaos'}
-            </button>
-          </div>
         </div>
+        <button
+          onClick={() => startMutation.mutate()}
+          disabled={startMutation.isPending}
+          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Play size={14} />
+          {startMutation.isPending ? 'Launching...' : 'Launch Experiment'}
+        </button>
         {startMutation.isSuccess && (
-          <p className="mt-3 text-enterprise-success">Experiment started successfully!</p>
+          <div className="mt-3 flex items-center gap-2 text-emerald-700 text-sm">
+            <CheckCircle size={14} /> Experiment started successfully
+          </div>
         )}
         {startMutation.isError && (
-          <p className="mt-3 text-enterprise-danger">Failed to start experiment. Another may already be running.</p>
+          <div className="mt-3 flex items-center gap-2 text-red-700 text-sm">
+            <AlertTriangle size={14} /> Failed to start. Another experiment may already be active.
+          </div>
         )}
       </div>
 
-      {/* Active Experiments */}
-      <div className="p-6 bg-enterprise-card rounded-lg border border-slate-700 shadow-xl">
-        <h2 className="text-xl font-semibold text-white mb-4">Active Experiments</h2>
-        {isLoading && <p className="text-slate-400">Loading chaos status...</p>}
-        {error && <p className="text-enterprise-danger">Error: Chaos Controller unavailable</p>}
-        {data && !data.error && (
-          <>
-            {Object.keys(data.active_experiments || {}).length === 0 ? (
-              <div className="flex items-center space-x-4">
-                <div className="w-3 h-3 bg-enterprise-success rounded-full animate-pulse"></div>
-                <p className="text-enterprise-success">No active chaos experiments. System is stable.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {Object.entries(data.active_experiments).map(([id, exp]: [string, any]) => (
-                  <div key={id} className="p-4 bg-slate-800 rounded-md border-l-4 border-enterprise-warning">
-                    <div className="flex items-center justify-between">
-                      <span className="text-white font-mono">{id}</span>
-                      <span className="px-2 py-1 bg-enterprise-warning/20 text-enterprise-warning text-xs rounded">Active</span>
-                    </div>
-                    <p className="text-sm text-slate-400 mt-1">Scenario: {exp.scenario_id} · Target: {exp.target_service}</p>
-                  </div>
-                ))}
-              </div>
+      {/* Active experiments */}
+      <div className="bg-white border border-slate-200 rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-slate-900">Active Experiments</h2>
+            {activeCount > 0 && (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">{activeCount} running</span>
             )}
-          </>
+          </div>
+        </div>
+        {isLoading && <div className="h-12 bg-slate-100 rounded-lg animate-pulse" />}
+        {error && <p className="text-sm text-red-600">Chaos Controller unavailable.</p>}
+        {data && !data.error && (
+          activeCount === 0 ? (
+            <div className="flex items-center gap-3 text-slate-500">
+              <CheckCircle size={16} className="text-emerald-500" />
+              <span className="text-sm">No active experiments — system is stable</span>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {Object.entries(data.active_experiments).map(([id, exp]) => (
+                <div key={id} className="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                  <div>
+                    <p className="text-sm font-mono font-semibold text-slate-900">{id}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Scenario: {exp.scenario_id} · Target: <span className="font-medium">{exp.target_service}</span>
+                    </p>
+                  </div>
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    Active
+                  </span>
+                </div>
+              ))}
+            </div>
+          )
         )}
-        {data && data.error && (
-          <p className="text-enterprise-danger">{data.error}</p>
-        )}
+        {data?.error && <p className="text-sm text-red-600">{data.error}</p>}
       </div>
     </div>
   );

@@ -1,59 +1,95 @@
 import React from 'react';
 import { useStore } from '../store/useStore';
+import { Settings as SettingsIcon, Cpu, Database, Radio, Info, ToggleLeft, ToggleRight } from 'lucide-react';
+
+const StatusPill = ({ status, color }: { status: string; color: 'green' | 'amber' | 'red' }) => {
+  const map = {
+    green: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    amber: 'bg-amber-50 text-amber-700 border-amber-200',
+    red: 'bg-red-50 text-red-700 border-red-200',
+  };
+  return (
+    <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${map[color]}`}>{status}</span>
+  );
+};
+
+const SettingRow = ({ icon: Icon, title, desc, children }: {
+  icon: React.ElementType; title: string; desc: string; children: React.ReactNode;
+}) => (
+  <div className="flex items-center justify-between py-4 border-b border-slate-100 last:border-0">
+    <div className="flex items-start gap-3">
+      <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+        <Icon size={14} className="text-slate-500" />
+      </div>
+      <div>
+        <p className="text-sm font-medium text-slate-900">{title}</p>
+        <p className="text-xs text-slate-500 mt-0.5">{desc}</p>
+      </div>
+    </div>
+    <div className="shrink-0 ml-4">{children}</div>
+  </div>
+);
 
 export const Settings = () => {
   const { isPollingActive, setPollingActive } = useStore();
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold text-white">Settings</h1>
-      <div className="p-6 bg-enterprise-card rounded-lg border border-slate-700 shadow-xl">
-        <h2 className="text-xl font-semibold text-white mb-4">Platform Configuration</h2>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-slate-800 rounded-md">
-            <div>
-              <h3 className="text-white font-medium">Live Data Polling</h3>
-              <p className="text-sm text-slate-400">Enable or disable real-time data refresh across all pages</p>
-            </div>
+    <div className="space-y-6 max-w-2xl mx-auto">
+      {/* Platform info */}
+      <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex items-start gap-3">
+        <Info size={14} className="text-indigo-600 mt-0.5 shrink-0" />
+        <div>
+          <p className="text-sm font-semibold text-indigo-900">KubePilot v1.0.0</p>
+          <p className="text-xs text-indigo-600 mt-0.5">Autonomous Kubernetes SRE Platform — Hackathon Build</p>
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
+        <div className="px-5 py-4 bg-slate-50">
+          <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Configuration</h2>
+        </div>
+        <div className="px-5">
+          <SettingRow
+            icon={Radio}
+            title="Live Data Polling"
+            desc="Enable real-time data refresh across all pages (every 3s)"
+          >
             <button
               onClick={() => setPollingActive(!isPollingActive)}
-              className={`px-4 py-2 rounded font-semibold transition ${
-                isPollingActive
-                  ? 'bg-enterprise-success text-white'
-                  : 'bg-slate-600 text-slate-300'
-              }`}
+              className="flex items-center gap-2"
+              aria-label="Toggle live polling"
             >
-              {isPollingActive ? 'Enabled' : 'Disabled'}
+              {isPollingActive ? (
+                <ToggleRight size={28} className="text-indigo-600" />
+              ) : (
+                <ToggleLeft size={28} className="text-slate-300" />
+              )}
+              <span className={`text-xs font-medium ${isPollingActive ? 'text-indigo-600' : 'text-slate-400'}`}>
+                {isPollingActive ? 'On' : 'Off'}
+              </span>
             </button>
-          </div>
-          <div className="flex items-center justify-between p-4 bg-slate-800 rounded-md">
-            <div>
-              <h3 className="text-white font-medium">AI Engine</h3>
-              <p className="text-sm text-slate-400">Local Ollama (offline fallback active)</p>
-            </div>
-            <span className="px-3 py-1 bg-enterprise-warning/20 text-enterprise-warning text-sm rounded">Offline</span>
-          </div>
-          <div className="flex items-center justify-between p-4 bg-slate-800 rounded-md">
-            <div>
-              <h3 className="text-white font-medium">Event Bus</h3>
-              <p className="text-sm text-slate-400">Redis Streams (kubepilot-system)</p>
-            </div>
-            <span className="px-3 py-1 bg-enterprise-success/20 text-enterprise-success text-sm rounded">Connected</span>
-          </div>
-          <div className="flex items-center justify-between p-4 bg-slate-800 rounded-md">
-            <div>
-              <h3 className="text-white font-medium">Telemetry</h3>
-              <p className="text-sm text-slate-400">OpenTelemetry + Prometheus</p>
-            </div>
-            <span className="px-3 py-1 bg-enterprise-success/20 text-enterprise-success text-sm rounded">Active</span>
-          </div>
-          <div className="flex items-center justify-between p-4 bg-slate-800 rounded-md">
-            <div>
-              <h3 className="text-white font-medium">Platform Version</h3>
-              <p className="text-sm text-slate-400">KubePilot Autonomous SRE Platform</p>
-            </div>
-            <span className="text-slate-300 font-mono">v1.0.0</span>
-          </div>
+          </SettingRow>
+          <SettingRow
+            icon={Cpu}
+            title="AI Engine"
+            desc="Local Ollama LLM — strictly for natural language explanations only"
+          >
+            <StatusPill status="Offline" color="amber" />
+          </SettingRow>
+          <SettingRow
+            icon={Database}
+            title="Event Bus"
+            desc="Redis Streams in kubepilot-system namespace"
+          >
+            <StatusPill status="Connected" color="green" />
+          </SettingRow>
+          <SettingRow
+            icon={SettingsIcon}
+            title="Telemetry"
+            desc="OpenTelemetry collector → Prometheus → Grafana"
+          >
+            <StatusPill status="Active" color="green" />
+          </SettingRow>
         </div>
       </div>
     </div>
