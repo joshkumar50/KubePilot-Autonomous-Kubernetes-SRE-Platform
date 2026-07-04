@@ -6,8 +6,7 @@ from pkg.core.logging import configure_logging
 from pkg.core.telemetry import bootstrap_telemetry
 from pkg.core.health import register_health_endpoints
 from pkg.eventbus.client import EventBusClient
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import sqlite3
 
 configure_logging("audit-engine")
 logger = logging.getLogger("audit-engine")
@@ -17,22 +16,14 @@ bootstrap_telemetry(app, "audit-engine", "http://otel-collector.kubepilot-observ
 event_bus = EventBusClient("redis://redis-master.kubepilot-system.svc.cluster.local:6379")
 register_health_endpoints(app, "audit-engine")
 
-DB_CONFIG = {
-    "dbname": "kubepilot",
-    "user": "postgres",
-    "password": "supersecretpassword",
-    "host": "postgres.kubepilot-system.svc.cluster.local",
-    "port": "5432"
-}
-
 def init_db():
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
+        conn = sqlite3.connect("/tmp/audit.db")
         cur = conn.cursor()
         cur.execute("""
             CREATE TABLE IF NOT EXISTS audit_logs (
-                id SERIAL PRIMARY KEY,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
                 event_type VARCHAR(100),
                 incident_id VARCHAR(100),
                 prompt_id VARCHAR(100),
@@ -40,7 +31,7 @@ def init_db():
                 confidence_score FLOAT,
                 decision VARCHAR(255),
                 human_approved BOOLEAN,
-                payload JSONB
+                payload JSON
             )
         """)
         conn.commit()
@@ -65,11 +56,11 @@ async def handle_audit_event(event_type: str, event: dict, message_id: str):
     logger.info(f"Auditing event {event_type} for incident {incident_id}")
     
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
+        conn = sqlite3.connect("/tmp/audit.db")
         cur = conn.cursor()
         cur.execute("""
             INSERT INTO audit_logs (event_type, incident_id, prompt_id, model_name, confidence_score, decision, human_approved, payload)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (event_type, incident_id, prompt_id, model_name, confidence, decision, human_approved, json.dumps(event)))
         conn.commit()
         cur.close()
@@ -90,15 +81,13 @@ async def startup_event():
 @app.get("/api/internal/logs")
 async def get_logs(limit: int = 50):
     try:
-        conn = psycopg2.connect(**DB_CONFIG)
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT %s", (limit,))
-        rows = cur.fetchall()
+        conn = sqlite3.connect("/tmp/audit.db")
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT ?", (limit,))
+        rows = [dict(row) for row in cur.fetchall()]
         cur.close()
         conn.close()
-        # Convert datetime to ISO string for JSON serialization
-        for r in rows:
-            r['timestamp'] = r['timestamp'].isoformat()
         return rows
     except Exception as e:
         logger.error(f"Failed to read DB: {e}")
