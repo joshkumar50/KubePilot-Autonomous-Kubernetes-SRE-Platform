@@ -9,14 +9,16 @@ import logging
 import os
 from typing import Any, Callable, Dict, Optional
 
-# Attempt to import redis. If not installed during Phase 1 validation, it will fail,
-# but the codebase must be production ready.
 try:
     import redis.asyncio as redis
     from redis.asyncio.client import Redis
+    from redis.exceptions import ResponseError, TimeoutError, ConnectionError
 except ImportError:
     redis = None
     Redis = Any
+    ResponseError = Exception
+    TimeoutError = Exception
+    ConnectionError = Exception
 
 logger = logging.getLogger("eventbus")
 
@@ -30,23 +32,43 @@ class EventBusClient:
         """Establish async connection to Redis."""
         if redis is None:
             raise ImportError("redis module is not installed.")
-        self.client = redis.from_url(self.redis_url, decode_responses=True)
+        # socket_timeout=None to avoid blocking read timeouts killing the connection
+        self.client = redis.from_url(
+            self.redis_url,
+            decode_responses=True,
+            socket_connect_timeout=5,
+            socket_keepalive=True,
+            health_check_interval=30,
+        )
         await self.client.ping()
         logger.info(f"Connected to EventBus at {self.redis_url}")
+
+    async def _ensure_connected(self):
+        """Reconnect if connection is lost."""
+        if self.client is None:
+            await self.connect()
+            return
+        try:
+            await self.client.ping()
+        except Exception:
+            logger.warning("Redis connection lost, reconnecting...")
+            try:
+                await self.client.aclose()
+            except Exception:
+                pass
+            self.client = None
+            await asyncio.sleep(1)
+            await self.connect()
 
     async def disconnect(self):
         """Close connection."""
         if self.client:
-            await self.client.close()
+            await self.client.aclose()
 
     async def publish(self, stream: str, event_type: str, payload: Dict[str, Any]):
         """Publish an event to a specific Redis Stream."""
-        if not self.client:
-            await self.connect()
-
+        await self._ensure_connected()
         event_data = {"event_type": event_type, "payload": json.dumps(payload)}
-
-        # '*' tells Redis to auto-generate the ID
         message_id = await self.client.xadd(stream, event_data, id="*")
         logger.debug(f"Published event {event_type} to {stream} with ID {message_id}")
         return message_id
@@ -54,53 +76,71 @@ class EventBusClient:
     async def consume(self, stream: str, group: str, consumer: str, callback: Callable):
         """
         Consume events from a Redis Stream using Consumer Groups.
-        Ensures at-least-once delivery.
+        Ensures at-least-once delivery with automatic reconnection on failures.
         """
-        if not self.client:
-            await self.connect()
+        await self._ensure_connected()
 
         # Ensure consumer group exists
         try:
             await self.client.xgroup_create(stream, group, id="0", mkstream=True)
-        except Exception as e:
+            logger.info(f"Created consumer group {group} for stream {stream}")
+        except ResponseError as e:
             if "BUSYGROUP" not in str(e):
                 logger.error(f"Error creating consumer group: {e}")
                 raise
+        except Exception as e:
+            logger.error(f"Unexpected error creating group: {e}")
 
         logger.info(f"Started consumer {consumer} in group {group} for stream {stream}")
 
         while True:
             try:
-                # Read 10 items, block for 5 seconds
+                await self._ensure_connected()
+
+                # Block for 2 seconds max — short enough to avoid stale connection timeouts
+                # but long enough to be efficient. On timeout, just loop again.
                 messages = await self.client.xreadgroup(
-                    group, consumer, {stream: ">"}, count=10, block=5000
+                    group, consumer, {stream: ">"}, count=10, block=2000
                 )
+
                 if not messages:
+                    # No new messages — normal, just loop
                     continue
 
                 for _, stream_messages in messages:
                     for message_id, message_data in stream_messages:
                         try:
-                            # Invoke the callback
                             event_type = message_data.get("event_type", "unknown")
-                            payload = json.loads(message_data.get("payload", "{}"))
+                            payload_str = message_data.get("payload", "{}")
+                            payload = json.loads(payload_str)
 
-                            # Await the callback
+                            logger.debug(f"Processing event {event_type} [{message_id}] from {stream}")
+
                             if asyncio.iscoroutinefunction(callback):
                                 await callback(event_type, payload, message_id)
                             else:
                                 callback(event_type, payload, message_id)
 
-                            # ACK the message ONLY if successful
+                            # ACK only after successful processing
                             await self.client.xack(stream, group, message_id)
+                            logger.debug(f"ACKed message {message_id}")
 
                         except Exception as inner_e:
-                            logger.error(
-                                f"Error processing message {message_id}: {inner_e}"
-                            )
-                            # Do not ACK! Let the DLQ or retry mechanism handle it.
+                            logger.error(f"Error processing message {message_id}: {inner_e}")
+                            # Do not ACK — let it be reprocessed
+
             except asyncio.CancelledError:
+                logger.info(f"Consumer {consumer} cancelled, shutting down.")
                 break
+            except (TimeoutError, ConnectionError) as e:
+                # Redis read timeout is NORMAL when no messages arrive — just reconnect and continue
+                logger.warning(f"Redis connection issue on {stream}, reconnecting: {type(e).__name__}")
+                try:
+                    await self.client.aclose()
+                except Exception:
+                    pass
+                self.client = None
+                await asyncio.sleep(1)
             except Exception as e:
-                logger.error(f"Consumer loop error: {e}")
-                await asyncio.sleep(2)  # Backoff on connection error
+                logger.error(f"Consumer loop error on {stream}: {e}")
+                await asyncio.sleep(2)
