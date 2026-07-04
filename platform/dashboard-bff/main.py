@@ -46,7 +46,12 @@ async def get_incidents():
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(url, timeout=TIMEOUT)
-            return resp.json().get("incidents", [])
+            incidents = resp.json().get("incidents", [])
+            # Normalise: incident-engine uses 'timestamp', UI expects 'start_time'
+            for inc in incidents:
+                if "start_time" not in inc and "timestamp" in inc:
+                    inc["start_time"] = inc["timestamp"]
+            return incidents
     except Exception as e:
         logger.error(f"Failed to fetch incidents: {e}")
         return []

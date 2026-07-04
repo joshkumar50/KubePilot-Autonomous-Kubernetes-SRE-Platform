@@ -149,8 +149,8 @@ export const ChaosEngineering = () => {
                   <div>
                     <p className="text-sm font-mono font-semibold text-slate-900">{id}</p>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Scenario: {exp.scenario_id} · Target: <span className="font-medium">{exp.target_service}</span>
-                    </p>
+                       Scenario: <span className="font-medium">{scenarios.find(s => s.id === exp.scenario_id)?.name ?? exp.scenario_id}</span> · Target: <span className="font-medium">{exp.target_service}</span>
+                     </p>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-100 px-2.5 py-1 rounded-full">
