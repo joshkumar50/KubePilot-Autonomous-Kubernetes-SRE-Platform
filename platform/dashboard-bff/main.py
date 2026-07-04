@@ -20,6 +20,14 @@ app.add_middleware(
 
 TIMEOUT = 5.0
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+@app.get("/ready")
+def ready():
+    return {"status": "ok"}
+
 @app.get("/api/dashboard")
 async def get_dashboard():
     return {
