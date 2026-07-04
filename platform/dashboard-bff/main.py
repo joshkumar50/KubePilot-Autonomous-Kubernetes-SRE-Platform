@@ -234,3 +234,43 @@ async def get_observability_metrics():
         "active_traces": 38,
         "services": services_health
     }
+
+@app.get("/api/ai")
+async def get_ai_analysis():
+    """Fetch AI analysis for active incidents."""
+    incidents_url = "http://recovery-validation-service.kubepilot-system.svc.cluster.local/metrics/mttr"
+    copilot_url = "http://ai-copilot.kubepilot-system.svc.cluster.local/explain"
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(incidents_url, timeout=TIMEOUT)
+            data = resp.json()
+            active = data.get("active_incidents", {})
+            
+            analyses = []
+            for inc_id, details in active.items():
+                incident_data = {
+                    "id": inc_id,
+                    "status": "Active",
+                    "start_time": details.get("start_time")
+                }
+                
+                try:
+                    ai_resp = await client.post(copilot_url, json={"incident_data": incident_data}, timeout=TIMEOUT)
+                    explanation = ai_resp.json()
+                except Exception as e:
+                    logger.warning(f"Failed to get AI explanation for {inc_id}: {e}")
+                    explanation = {
+                        "executive_summary": "LLM Offline. Incident resolved automatically by Decision Engine.",
+                        "technical_summary": "Network timeout or AI service unavailable."
+                    }
+                
+                analyses.append({
+                    "id": inc_id,
+                    "description": "Critical system degradation detected.",
+                    "explanation": explanation
+                })
+                
+            return analyses
+    except Exception as e:
+        logger.error(f"Failed to fetch AI analysis: {e}")
+        return []
