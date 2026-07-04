@@ -149,7 +149,7 @@ export const ChaosEngineering = () => {
                   <div>
                     <p className="text-sm font-mono font-semibold text-slate-900">{id}</p>
                     <p className="text-xs text-slate-500 mt-0.5">
-                       Scenario: <span className="font-medium">{scenarios.find(s => s.id === exp.scenario_id)?.name ?? exp.scenario_id}</span> · Target: <span className="font-medium">{exp.target_service}</span>
+                       Scenario: <span className="font-medium">{scenarios.find(s => String(s.id) === String(exp.scenario_id))?.name ?? exp.scenario_id}</span> · Target: <span className="font-medium">{exp.target_service}</span>
                      </p>
                   </div>
                   <div className="flex items-center gap-3">
