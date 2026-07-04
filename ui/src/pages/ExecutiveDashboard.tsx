@@ -149,8 +149,8 @@ export const ExecutiveDashboard = () => {
                   <p className="text-sm text-slate-600">Recovery Validator: closed-loop verification on</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <Zap size={14} className="text-amber-500 mt-0.5 shrink-0" />
-                  <p className="text-sm text-slate-600">AI Copilot: Offline (fallback rule engine active)</p>
+                  <CheckCircle size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+                  <p className="text-sm text-slate-600">AI Copilot: Online — generating incident summaries</p>
                 </div>
               </div>
             </div>

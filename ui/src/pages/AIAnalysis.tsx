@@ -5,7 +5,7 @@ import { Brain, CheckCircle, AlertTriangle } from 'lucide-react';
 
 interface AIIncident {
   id: string; description: string;
-  explanation?: { executive_summary?: string; technical_summary?: string; };
+  explanation?: { executive_summary?: string; technical_summary?: string; postmortem?: string; };
 }
 
 export const AIAnalysis = () => {
@@ -47,8 +47,11 @@ export const AIAnalysis = () => {
                   <p className="text-sm font-semibold text-slate-900 font-mono">{item.id}</p>
                   <p className="text-xs text-slate-500">{item.description}</p>
                 </div>
+                <span className="ml-auto text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+                  <CheckCircle size={10} /> AI Analyzed
+                </span>
               </div>
-              <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Executive Summary</p>
                   <p className="text-sm text-slate-700 leading-relaxed">
@@ -57,8 +60,14 @@ export const AIAnalysis = () => {
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Technical Detail</p>
-                  <p className="text-sm text-slate-600 leading-relaxed font-mono bg-slate-50 rounded-lg p-3 text-xs">
+                  <p className="text-sm text-slate-600 leading-relaxed">
                     {item.explanation?.technical_summary || 'No technical detail available.'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Postmortem</p>
+                  <p className="text-sm text-slate-600 leading-relaxed italic">
+                    {item.explanation?.postmortem || 'No postmortem available.'}
                   </p>
                 </div>
               </div>

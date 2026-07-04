@@ -61,7 +61,9 @@ export const AuditCenter = () => {
               <tbody className="divide-y divide-slate-100">
                 {data.map((log, idx) => (
                   <tr key={idx} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 text-xs font-mono text-slate-500 whitespace-nowrap">{log.timestamp}</td>
+                    <td className="px-4 py-3 text-xs font-mono text-slate-500 whitespace-nowrap">
+                      {log.timestamp ? new Date(log.timestamp).toLocaleString() : '—'}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${eventColor(log.event_type || '')}`}>
                         {log.event_type || '—'}
@@ -69,8 +71,14 @@ export const AuditCenter = () => {
                     </td>
                     <td className="px-4 py-3 text-xs font-mono text-slate-600">{log.incident_id || '—'}</td>
                     <td className="px-4 py-3 text-xs text-slate-600">{log.decision || '—'}</td>
-                    <td className="px-4 py-3 text-xs text-slate-600">
-                      {log.confidence_score != null ? `${(log.confidence_score * 100).toFixed(0)}%` : '—'}
+                    <td className="px-4 py-3 text-xs font-medium">
+                      {log.confidence_score != null ? (
+                        <span className={`px-1.5 py-0.5 rounded ${
+                          log.confidence_score >= 0.9 ? 'text-emerald-700 bg-emerald-50' :
+                          log.confidence_score >= 0.7 ? 'text-amber-700 bg-amber-50' :
+                          'text-red-700 bg-red-50'
+                        }`}>{(log.confidence_score * 100).toFixed(0)}%</span>
+                      ) : '—'}
                     </td>
                     <td className="px-4 py-3">
                       {log.human_approved ? (
