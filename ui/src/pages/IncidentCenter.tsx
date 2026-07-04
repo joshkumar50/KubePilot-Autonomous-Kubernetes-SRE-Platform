@@ -48,6 +48,7 @@ export const IncidentCenter = () => {
   });
 
   const incidents = Array.isArray(data) ? data : [];
+  const activeIncidents = incidents.filter(i => i.status !== 'resolved' && i.status !== 'Resolved');
 
   return (
     <div className="space-y-4 max-w-4xl mx-auto">
@@ -60,9 +61,9 @@ export const IncidentCenter = () => {
             : 'Connecting...'}
         </div>
         <div className="flex items-center gap-2">
-          {incidents.length > 0 ? (
+          {activeIncidents.length > 0 ? (
             <span className="flex items-center gap-1.5 text-xs font-medium text-red-700 bg-red-50 px-2.5 py-1 rounded-full border border-red-200 animate-pulse">
-              <Flame size={11} /> {incidents.length} active incident{incidents.length !== 1 ? 's' : ''}
+              <Flame size={11} /> {activeIncidents.length} active incident{activeIncidents.length !== 1 ? 's' : ''}
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
