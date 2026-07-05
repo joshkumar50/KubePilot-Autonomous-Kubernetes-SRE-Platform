@@ -44,21 +44,28 @@ class EventBusClient:
         logger.info(f"Connected to EventBus at {self.redis_url}")
 
     async def _ensure_connected(self):
-        """Reconnect if connection is lost."""
-        if self.client is None:
-            await self.connect()
-            return
-        try:
-            await self.client.ping()
-        except Exception:
-            logger.warning("Redis connection lost, reconnecting...")
+        """Reconnect if connection is lost, looping until successful."""
+        while True:
+            if self.client is None:
+                try:
+                    await self.connect()
+                    return
+                except Exception as e:
+                    logger.warning(f"Failed to connect to Redis, retrying in 2s: {e}")
+                    await asyncio.sleep(2)
+                    continue
+            
             try:
-                await self.client.aclose()
+                await self.client.ping()
+                return
             except Exception:
-                pass
-            self.client = None
-            await asyncio.sleep(1)
-            await self.connect()
+                logger.warning("Redis connection lost, reconnecting...")
+                try:
+                    await self.client.aclose()
+                except Exception:
+                    pass
+                self.client = None
+                await asyncio.sleep(2)
 
     async def disconnect(self):
         """Close connection."""
@@ -80,9 +87,11 @@ class EventBusClient:
         """
         await self._ensure_connected()
 
-        # Ensure consumer group exists
+        # Use id="$" — only consume NEW messages published after this consumer starts.
+        # id="0" would replay ALL historical messages from the stream on every pod restart,
+        # causing stale ChaosStarted events to re-trigger the pipeline.
         try:
-            await self.client.xgroup_create(stream, group, id="0", mkstream=True)
+            await self.client.xgroup_create(stream, group, id="$", mkstream=True)
             logger.info(f"Created consumer group {group} for stream {stream}")
         except ResponseError as e:
             if "BUSYGROUP" not in str(e):

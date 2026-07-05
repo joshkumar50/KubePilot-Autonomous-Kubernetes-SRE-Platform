@@ -90,6 +90,8 @@ async def get_incidents():
         logger.error(f"Failed to fetch incidents: {e}")
         return []
 
+ai_cache = {}
+
 @app.get("/api/ai")
 async def get_ai_analysis():
     url = "http://incident-engine.kubepilot-system.svc.cluster.local/incidents/active"
@@ -100,18 +102,25 @@ async def get_ai_analysis():
             
             ai_data = []
             for inc in incidents:
-                try:
-                    ai_resp = await client.post(
-                        "http://ai-copilot.kubepilot-system.svc.cluster.local/explain",
-                        json={"incident_data": inc},
-                        timeout=TIMEOUT
-                    )
-                    explanation = ai_resp.json()
-                except:
-                    explanation = None
+                inc_id = inc.get("id")
+                if inc_id in ai_cache:
+                    explanation = ai_cache[inc_id]
+                else:
+                    try:
+                        ai_resp = await client.post(
+                            "http://ai-copilot.kubepilot-system.svc.cluster.local/explain",
+                            json={"incident_data": inc},
+                            timeout=15.0
+                        )
+                        explanation = ai_resp.json()
+                        if explanation and "executive_summary" in explanation:
+                            ai_cache[inc_id] = explanation
+                    except Exception as e:
+                        logger.error(f"AI API failed: {e}")
+                        explanation = None
                     
                 ai_data.append({
-                    "id": inc.get("id"),
+                    "id": inc_id,
                     "description": inc.get("description", "Unknown incident"),
                     "explanation": explanation
                 })

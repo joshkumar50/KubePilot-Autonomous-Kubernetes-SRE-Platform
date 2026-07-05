@@ -54,20 +54,26 @@ export const AIAnalysis = () => {
               <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Executive Summary</p>
-                  <p className="text-sm text-slate-700 leading-relaxed">
-                    {item.explanation?.executive_summary || 'No summary available.'}
+                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                    {typeof item.explanation?.executive_summary === 'object' 
+                      ? JSON.stringify(item.explanation.executive_summary, null, 2) 
+                      : (item.explanation?.executive_summary || 'No summary available.')}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Technical Detail</p>
-                  <p className="text-sm text-slate-600 leading-relaxed">
-                    {item.explanation?.technical_summary || 'No technical detail available.'}
+                  <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">
+                    {typeof item.explanation?.technical_summary === 'object' 
+                      ? JSON.stringify(item.explanation.technical_summary, null, 2) 
+                      : (item.explanation?.technical_summary || 'No technical detail available.')}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Postmortem</p>
-                  <p className="text-sm text-slate-600 leading-relaxed italic">
-                    {item.explanation?.postmortem || 'No postmortem available.'}
+                  <p className="text-sm text-slate-600 leading-relaxed italic whitespace-pre-wrap">
+                    {typeof item.explanation?.postmortem === 'object' 
+                      ? JSON.stringify(item.explanation.postmortem, null, 2) 
+                      : (item.explanation?.postmortem || 'No postmortem available.')}
                   </p>
                 </div>
               </div>

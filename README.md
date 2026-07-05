@@ -39,4 +39,19 @@ The platform implements a strict event-driven architecture using Redis Streams.
 - `infra/`: Kubernetes manifests, Helm charts, Observability stack.
 
 ## Getting Started
-See `docs/DEPLOYMENT.md` (To be implemented in Phase 2) for Minikube bootstrapping instructions.
+The entire platform can be deployed locally using Minikube with a single click.
+
+1. Ensure Docker Desktop and Minikube are installed.
+2. Run the deployment script:
+   ```powershell
+   .\start.ps1
+   ```
+   This intelligent script will automatically:
+   - Start Minikube.
+   - Build all 17 microservices locally directly into the Minikube Docker daemon (caching intelligently).
+   - Apply configurations and rollout deployments.
+   - Set up self-healing background port-forwarding for the UI and API Gateway.
+
+3. Access the platform:
+   - **UI Dashboard**: http://127.0.0.1:56115
+   - **API Gateway**: http://localhost:58663/api/dashboard
